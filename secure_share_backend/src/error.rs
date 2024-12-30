@@ -66,7 +66,7 @@ impl HttpError {
       }
     }
 
-    pub fn bed_request(message: impl Into<String>) -> Self {
+    pub fn bad_request(message: impl Into<String>) -> Self {
       HttpError {
         message: message.into(),
         status: StatusCode::BAD_REQUEST,

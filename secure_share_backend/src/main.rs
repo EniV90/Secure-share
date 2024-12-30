@@ -5,6 +5,7 @@ mod error;
 mod db; 
 mod utils;
 mod middleware;
+mod handler;
 
 use axum::{http::{header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE}, HeaderValue, Method}, Router};
 use config::Config;
