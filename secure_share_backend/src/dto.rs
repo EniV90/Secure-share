@@ -142,7 +142,7 @@ impl UserReceiveFileDto {
 }
 
 #[derive(Debug, Deserialize, Serialize)] 
-pub struct userRecieveListResponseDto {
+pub struct UserRecieveListResponseDto {
   pub status: String,
   pub files: Vec<UserReceiveFileDto>,
   pub results: i64,
