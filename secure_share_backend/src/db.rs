@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use crate::models::{File, ReceivedFileDetails, SentFileDetails, SharedLink, User};
 
-// Repository traits
+
 #[async_trait]
 pub trait UserRepository {
     async fn get_user(
@@ -82,7 +82,7 @@ pub trait SharedLinkRepository {
     ) -> Result<Option<SharedLink>, sqlx::Error>;
 }
 
-// PostgreSQL implementations
+
 #[derive(Debug, Clone)]
 pub struct DBClientUserRepository {
     pool: Pool<Postgres>,
@@ -98,7 +98,7 @@ pub struct DBClientSharedLinkRepository {
     pool: Pool<Postgres>,
 }
 
-// Implementation constructors
+
 impl DBClientUserRepository {
     pub fn new(pool: Pool<Postgres>) -> Self {
         Self { pool }
