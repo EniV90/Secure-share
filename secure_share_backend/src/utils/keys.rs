@@ -5,7 +5,7 @@ use rand::rngs::OsRng;
 use rsa::{pkcs1::{EncodeRsaPrivateKey, EncodeRsaPublicKey},RsaPrivateKey, RsaPublicKey};
 use base64::{engine::general_purpose::STANDARD, Engine};
 
-use crate::{db::UserExt, error::HttpError, models::User, AppState};
+use crate::{db::UserRepository, error::HttpError, models::User, AppState};
 
 
 
@@ -29,7 +29,7 @@ pub async fn generate_key(
       HttpError::server_error(e.to_string())
     })?;
 
-    let _public_key_prm = public_key.to_pkcs1_pem(rsa::pkcs1::LineEnding::LF)
+    let _public_key_pem = public_key.to_pkcs1_pem(rsa::pkcs1::LineEnding::LF)
     .map_err(|e| {
       HttpError::server_error(e.to_string())
     })?;
@@ -38,7 +38,7 @@ pub async fn generate_key(
 
     let user_id = uuid::Uuid::parse_str(&user.id.to_string()).unwrap();
 
-    app_state.db_client
+    app_state.user_repository
     .save_user_key(user_id.clone(), public_key_b64.clone())
     .await
     .map_err(|e| HttpError::server_error(e.to_string()))?;

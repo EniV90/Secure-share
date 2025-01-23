@@ -1,5 +1,3 @@
-
-
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use sqlx::{Pool, Postgres};
@@ -7,19 +5,9 @@ use uuid::Uuid;
 
 use crate::models::{File, ReceivedFileDetails, SentFileDetails, SharedLink, User};
 
-#[derive(Debug, Clone)]
-pub struct DBClient {
-    pool: Pool<Postgres>,
-}
-
-impl DBClient {
-    pub fn new(pool: Pool<Postgres>) -> Self {
-        DBClient { pool }
-    }
-}
-
+// Repository traits
 #[async_trait]
-pub trait UserExt {
+pub trait UserRepository {
     async fn get_user(
         &self,
         user_id: Option<Uuid>,
@@ -48,9 +36,11 @@ pub trait UserExt {
 
     async fn save_user_key(&self, user_id: Uuid, public_key: String) -> Result<(), sqlx::Error>;
 
-    async fn search_by_email(&self, user_id: Uuid, query: String)
-        -> Result<Vec<User>, sqlx::Error>;
+    async fn search_by_email(&self, user_id: Uuid, query: String) -> Result<Vec<User>, sqlx::Error>;
+}
 
+#[async_trait]
+pub trait FileRepository {
     async fn save_encrypted_file(
         &self,
         user_id: Uuid,
@@ -64,17 +54,8 @@ pub trait UserExt {
         iv: Vec<u8>,
     ) -> Result<(), sqlx::Error>;
 
-    async fn get_shared(
-        &self,
-        shared_id: Uuid,
-        user_id: Uuid,
-    ) -> Result<Option<SharedLink>, sqlx::Error>;
-
-    async fn get_file(
-        &self,
-        file_id: Uuid,
-    ) -> Result<Option<File>, sqlx::Error>;
-
+    async fn get_file(&self, file_id: Uuid) -> Result<Option<File>, sqlx::Error>;
+    
     async fn get_sent_files(
         &self,
         user_id: Uuid,
@@ -89,13 +70,55 @@ pub trait UserExt {
         limit: usize
     ) -> Result<(Vec<ReceivedFileDetails>, i64), sqlx::Error>;
 
-    async fn delete_expired_files(
-        &self
-    ) -> Result<(), sqlx::Error>;
+    async fn delete_expired_files(&self) -> Result<(), sqlx::Error>;
 }
 
 #[async_trait]
-impl UserExt for DBClient {
+pub trait SharedLinkRepository {
+    async fn get_shared(
+        &self,
+        shared_id: Uuid,
+        user_id: Uuid,
+    ) -> Result<Option<SharedLink>, sqlx::Error>;
+}
+
+// PostgreSQL implementations
+#[derive(Debug, Clone)]
+pub struct DBClientUserRepository {
+    pool: Pool<Postgres>,
+}
+
+#[derive(Debug, Clone)]
+pub struct DBClientFileRepository {
+    pool: Pool<Postgres>,
+}
+
+#[derive(Debug)]
+pub struct DBClientSharedLinkRepository {
+    pool: Pool<Postgres>,
+}
+
+// Implementation constructors
+impl DBClientUserRepository {
+    pub fn new(pool: Pool<Postgres>) -> Self {
+        Self { pool }
+    }
+}
+
+impl DBClientFileRepository {
+    pub fn new(pool: Pool<Postgres>) -> Self {
+        Self { pool }
+    }
+}
+
+impl DBClientSharedLinkRepository {
+    pub fn new(pool: Pool<Postgres>) -> Self {
+        Self { pool }
+    }
+}
+
+#[async_trait]
+impl UserRepository for DBClientUserRepository {
     async fn get_user(
         &self,
         user_id: Option<Uuid>,
@@ -210,12 +233,13 @@ impl UserExt for DBClient {
 
         Ok(())
     }
+
     async fn search_by_email(
         &self,
         user_id: Uuid,
         query: String,
     ) -> Result<Vec<User>, sqlx::Error> {
-        let user = sqlx::query_as!(
+        let users = sqlx::query_as!(
             User,
             r#"
             SELECT id, name, email, password, public_key, created_at, updated_at
@@ -230,21 +254,24 @@ impl UserExt for DBClient {
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(user)
+        Ok(users)
     }
+}
+
+#[async_trait]
+impl FileRepository for DBClientFileRepository {
     async fn save_encrypted_file(
         &self,
         user_id: Uuid,
         file_name: String,
         file_size: i64,
-        recipient_user_ud: Uuid,
+        recipient_user_id: Uuid,
         password: String,
         expiration_date: DateTime<Utc>,
         encrypted_aes_key: Vec<u8>,
         encrypted_file: Vec<u8>,
         iv: Vec<u8>,
     ) -> Result<(), sqlx::Error> {
-        // Insert into the files table and get the file_id
         let file_id: Uuid = sqlx::query_scalar!(
             r#"
             INSERT INTO files (user_id, file_name, file_size, encrypted_aes_key, encrypted_file, iv, created_at)
@@ -261,14 +288,13 @@ impl UserExt for DBClient {
         .fetch_one(&self.pool)
         .await?;
 
-        // Insert into the shared_links table using the returned file_id
         sqlx::query!(
             r#"
             INSERT INTO shared_links (file_id, recipient_user_id, password, expiration_date, created_at)
             VALUES ($1, $2, $3, $4, NOW())
             "#,
             file_id,
-            recipient_user_ud,
+            recipient_user_id,
             password,
             expiration_date
         )
@@ -278,33 +304,7 @@ impl UserExt for DBClient {
         Ok(())
     }
 
-    async fn get_shared(
-        &self,
-        shared_id: Uuid,
-        user_id: Uuid,
-    ) -> Result<Option<SharedLink>, sqlx::Error> {
-        let shared_link = sqlx::query_as!(
-            SharedLink,
-            r#"
-            SELECT id, file_id, recipient_user_id, password, expiration_date, created_at
-            FROM shared_links
-            WHERE id = $1
-            AND recipient_user_id = $2
-            AND expiration_date > NOW()
-            "#,
-            shared_id,
-            user_id,
-        )
-        .fetch_optional(&self.pool)
-        .await?;
-
-        Ok(shared_link)
-    }
-
-    async fn get_file(
-        &self,
-        file_id: Uuid,
-    ) -> Result<Option<File>, sqlx::Error> {
+    async fn get_file(&self, file_id: Uuid) -> Result<Option<File>, sqlx::Error> {
         let file = sqlx::query_as!(
             File,
             r#"
@@ -319,6 +319,7 @@ impl UserExt for DBClient {
 
         Ok(file)
     }
+
     async fn get_sent_files(
         &self,
         user_id: Uuid,
@@ -427,18 +428,15 @@ impl UserExt for DBClient {
         Ok((files, total_count))
     }
 
-    async fn delete_expired_files(
-        &self
-    ) -> Result<(), sqlx::Error> {
-        
+    async fn delete_expired_files(&self) -> Result<(), sqlx::Error> {
         let expired_shared_links: Vec<Uuid> = sqlx::query_scalar!(
             r#"
             SELECT sl.id
             FROM shared_links sl
             WHERE sl.expiration_date < NOW()
             "#,
-        ).
-        fetch_all(&self.pool)
+        )
+        .fetch_all(&self.pool)
         .await?;
 
         if expired_shared_links.is_empty() {
@@ -465,25 +463,48 @@ impl UserExt for DBClient {
             DELETE FROM shared_links
             WHERE id = ANY($1)
             "#,
-            &expired_shared_links[..] // Pass the list of expired shared link IDs
+            &expired_shared_links[..]
         )
         .execute(&self.pool)
         .await?;
 
-        // Delete the expired files
         sqlx::query!(
             r#"
             DELETE FROM files
             WHERE id = ANY($1)
             "#,
-            &expired_file_ids[..] // Pass the list of expired file IDs
+            &expired_file_ids[..]
         )
         .execute(&self.pool)
         .await?;
 
         println!("Successfully deleted expired files and their shared links.");
-
         Ok(())
+    }
+}
 
+#[async_trait]
+impl SharedLinkRepository for DBClientSharedLinkRepository {
+    async fn get_shared(
+        &self,
+        shared_id: Uuid,
+        user_id: Uuid,
+    ) -> Result<Option<SharedLink>, sqlx::Error> {
+        let shared_link = sqlx::query_as!(
+            SharedLink,
+            r#"
+            SELECT id, file_id, recipient_user_id, password, expiration_date, created_at
+            FROM shared_links
+            WHERE id = $1
+            AND recipient_user_id = $2
+            AND expiration_date > NOW()
+            "#,
+            shared_id,
+            user_id,
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(shared_link)
     }
 }

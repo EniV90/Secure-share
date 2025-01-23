@@ -2,7 +2,7 @@ use axum::{http::header, extract::Request, middleware::Next, response::IntoRespo
 use axum_extra::extract::CookieJar;
 use std::sync::Arc;
 use serde::{Deserialize, Serialize};
-use crate::{db::UserExt, error::{ErrorMessage, HttpError}, models::User, utils::token, AppState};
+use crate::{db::UserRepository, error::{ErrorMessage, HttpError}, models::User, utils::token, AppState};
 
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -42,9 +42,9 @@ pub async fn auth(
       return Err(HttpError::unauthorized(ErrorMessage::InvalidToken.to_string()))
     }
   };
-   let user_id = uuid::Uuid::parse_str(&token.to_string()).unwrap();
+   let user_id = uuid::Uuid::parse_str(&token_details.to_string()).unwrap();
 
-   let user = app_state.db_client.get_user(Some(user_id), None, None)
+   let user = app_state.user_repository.get_user(Some(user_id), None, None)
    .await
    .map_err(|e| HttpError::server_error(e.to_string()))?;
 

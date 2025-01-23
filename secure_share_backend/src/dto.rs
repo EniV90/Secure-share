@@ -146,6 +146,7 @@ pub struct UserRecieveListResponseDto {
   pub status: String,
   pub files: Vec<UserReceiveFileDto>,
   pub results: i64,
+
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -258,7 +259,7 @@ fn validate_expiration_date(expiration_date: &str) -> Result<(), ValidationError
 }
 
 #[derive(Debug, Deserialize, Serialize, Validate, Clone, Default)]
-pub struct RecieveFileDto {
+pub struct RetrieveFileDto {
   #[validate(length(min = 1, message = "Shared id is required"))]
   pub shared_id: String,
 
@@ -268,3 +269,4 @@ pub struct RecieveFileDto {
   )]
   pub password: String,
 }
+

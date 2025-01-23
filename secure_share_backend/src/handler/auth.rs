@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
-use axum::{http::{header, response, HeaderMap, StatusCode}, response::IntoResponse, routing::post, Extension, Json, Router};
+use axum::{http::{header, HeaderMap, StatusCode}, response::IntoResponse, routing::post, Extension, Json, Router};
 use axum_extra::extract::cookie::Cookie;
 use validator::Validate;
 
-use crate::{db::UserExt, dto::{LoginUserDto, RegisterUserDto, Response, UserLoginResponseDto}, error::{ErrorMessage, HttpError}, utils::{keys::generate_key, password, token}, AppState};
+use crate::{db::UserRepository, dto::{LoginUserDto, RegisterUserDto, Response, UserLoginResponseDto}, error::{ErrorMessage, HttpError}, utils::{keys::generate_key, password, token}, AppState};
 
 pub fn auth_handler() -> Router {
   Router::new()
@@ -24,7 +24,7 @@ pub async fn register(
   let hash_password = password::hash(&body.password)
   .map_err(|e| HttpError::server_error(e.to_string()))?;
 
-  let result = app_state.db_client
+  let result = app_state.user_repository
   .save_user(&body.name, &body.email, &hash_password)
   .await;
 
@@ -58,7 +58,7 @@ pub async fn login(
     body.validate()
     .map_err(|e| HttpError::bad_request(e.to_string()))?;
 
-  let result = app_state.db_client
+  let result = app_state.user_repository
   .get_user(None, None, Some(&body.email))
   .await
   .map_err(|e| HttpError::server_error(e.to_string()))?;

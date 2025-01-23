@@ -80,6 +80,13 @@ impl HttpError {
       }
     }
 
+    pub fn unauthorized(message: impl Into<String>) -> Self {
+      HttpError {
+        message: message.into(),
+        status: StatusCode::UNAUTHORIZED
+      }
+    }
+
     pub fn into_http_response(self) -> Response {
       let json_response = Json(ErrorResponse {
         status: "fail".to_string(),
